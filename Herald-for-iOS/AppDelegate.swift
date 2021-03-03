@@ -22,15 +22,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, SensorDelegate {
 
     /// Generate unique and consistent device identifier for testing detection and tracking
     private func identifier() -> Int32 {
-        let text = UIDevice.current.name + ":" + UIDevice.current.model + ":" + UIDevice.current.systemName + ":" + UIDevice.current.systemVersion
-        var hash = UInt64 (5381)
-        let buf = [UInt8](text.utf8)
-        for b in buf {
-            hash = 127 * (hash & 0x00ffffffffffffff) + UInt64(b)
+        if UserDefaults.standard.integer(forKey: "int32identifier") == 0 {
+            let randUnsigned = arc4random()
+            let randSigned = Int32(bitPattern: randUnsigned)
+            UserDefaults.standard.set(randSigned, forKey: "int32identifier")
         }
-        let value = Int32(hash.remainderReportingOverflow(dividingBy: UInt64(Int32.max)).partialValue)
-        logger.debug("Identifier (text=\(text),hash=\(hash),value=\(value))")
-        return value
+        return Int32(UserDefaults.standard.integer(forKey: "int32identifier"))
     }
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
@@ -84,7 +81,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, SensorDelegate {
     func addEfficacyLogging() {
         if let payloadData = sensor?.payloadData {
             // Loggers
-            #if DEBUG
             sensor?.add(delegate: ContactLog(filename: "contacts.csv"))
             sensor?.add(delegate: StatisticsLog(filename: "statistics.csv", payloadData: payloadData))
             sensor?.add(delegate: DetectionLog(filename: "detection.csv", payloadData: payloadData))
@@ -93,7 +89,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, SensorDelegate {
                 (BLESensorConfiguration.interopOpenTraceEnabled && BLESensorConfiguration.interopOpenTracePayloadDataUpdateTimeInterval != .never)) {
                 sensor?.add(delegate: EventTimeIntervalLog(filename: "statistics_didRead.csv", payloadData: payloadData, eventType: .read))
             }
-            #endif
         }
     }
 

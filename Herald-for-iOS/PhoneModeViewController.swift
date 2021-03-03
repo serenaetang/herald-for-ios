@@ -8,7 +8,7 @@
 import UIKit
 import Herald
 
-class PhoneModeViewController: UIViewController, SensorDelegate, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate, VenueDiaryDelegate {
+class PhoneModeViewController: UIViewController, SensorDelegate, UITableViewDataSource, UITableViewDelegate {
     
     private let logger = Log(subsystem: "Herald", category: "ViewController")
     private let appDelegate = UIApplication.shared.delegate as! AppDelegate
@@ -34,9 +34,6 @@ class PhoneModeViewController: UIViewController, SensorDelegate, UITableViewData
     @IBOutlet weak var labelDidMeasureCount: UILabel!
     @IBOutlet weak var labelDidShareCount: UILabel!
     @IBOutlet weak var labelDidReceiveCount: UILabel!
-    
-    // MARK:- Venue Diary
-    var venueDiary: VenueDiary?
     
     // MARK:- Social mixing
     
@@ -64,10 +61,6 @@ class PhoneModeViewController: UIViewController, SensorDelegate, UITableViewData
     @IBOutlet weak var buttonSocialMixingScoreUnitM15: UIButton!
     @IBOutlet weak var buttonSocialMixingScoreUnitM5: UIButton!
     @IBOutlet weak var buttonSocialMixingScoreUnitM1: UIButton!
-    // Immediate send elements
-    @IBOutlet weak var textMessageToSend: UITextField!
-    @IBOutlet weak var buttonMessageSend: UIButton!
-    @IBOutlet weak var labelMessageReceived: UILabel!
     
     // MARK:- Mobility
     
@@ -97,20 +90,10 @@ class PhoneModeViewController: UIViewController, SensorDelegate, UITableViewData
         sensor.add(delegate: socialMixingScore)
         sensor.add(delegate: mobility)
         
-        
-        // Added diary logger
-        if nil == venueDiary {
-            venueDiary = VenueDiary()
-        }
-        venueDiary!.add(self)
-        sensor.add(delegate: venueDiary!)
-        
+                
         dateFormatter.dateFormat = "YYYY-MM-dd HH:mm:ss"
         dateFormatterTime.dateFormat = "HH:mm:ss"
         
-        textMessageToSend.delegate = self
-        textMessageToSend.text = "ping"
-
         labelDevice.text = SensorArray.deviceDescription
         if let payloadData = appDelegate.sensor?.payloadData {
             labelPayload.text = "PAYLOAD : \(payloadData.shortName)"
@@ -254,29 +237,6 @@ class PhoneModeViewController: UIViewController, SensorDelegate, UITableViewData
         }
     }
     
-    // MARK:- Immediate Send
-    @IBAction func didClickSend(_ sender: UIButton) {
-        guard let text = textMessageToSend.text else {
-            return
-        }
-        if text.count == 0 {
-            return
-        }
-        guard let sensor = sensor else {
-            return
-        }
-        let ok = sensor.immediateSendAll(data: text.data(using: .utf8)!)
-        if !ok {
-            labelMessageReceived.text = "Failed to send"
-        }
-    }
-    
-    func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        self.view.endEditing(true)
-        return false
-    }
-
-
     // MARK:- Crash app
     
     private func enableCrashButton() {
@@ -303,12 +263,6 @@ class PhoneModeViewController: UIViewController, SensorDelegate, UITableViewData
         }
     }
     
-    // MARK:- VenueDiaryDelegate
-    func venue(_ didUpdate: VenueDiaryEvent) {
-        // highlight item as Venue in the UI
-        logger.debug("venue didUpdate")
-    }
-
     // MARK:- SensorDelegate
 
     func sensor(_ sensor: SensorType, didDetect: TargetIdentifier) {
@@ -372,32 +326,6 @@ class PhoneModeViewController: UIViewController, SensorDelegate, UITableViewData
             self.updateSocialDistance(self.socialMixingScoreUnit)
         }
     }
-
-    // Immediate send data (text in demo app), NOT payload data
-    func sensor(_ sensor: SensorType, didReceive: Data, fromTarget: TargetIdentifier) {
-        self.didReceive += 1
-        let didRead = String(bytes: didReceive, encoding: .utf8)
-        DispatchQueue.main.async {
-            guard let read = didRead else {
-                self.labelMessageReceived.text = "<garbled>"
-                return
-            }
-            self.labelMessageReceived.text = read
-            // The following is for an easy demo flow
-            if read == "ping" {
-                self.textMessageToSend.text = "pong"
-            } else if read == "pong" {
-                self.textMessageToSend.text = "ping"
-            }
-        }
-        guard foreground else {
-            return
-        }
-        DispatchQueue.main.async {
-            self.labelDidReceiveCount.text = "\(self.didReceive)"
-            self.updateTargets()
-        }
-    }
     
     // MARK:- UITableViewDataSource
     
@@ -432,19 +360,19 @@ class PhoneModeViewController: UIViewController, SensorDelegate, UITableViewData
             labelText += ":"
             labelText += String(legacyPayloadData.protocolName.rawValue.prefix(1))
         }
-        venueDiary?.listRecordableEvents().forEach({ (evt) in
-            self.logger.debug("listRecordableEvents item")
-            guard let eventPayload = evt.payload else {
-                return
-            }
-            if eventPayload.shortName == shortName {
-                labelText += " (Venue)"
-                // TODO set text to venue name, if provided
-                // TODO include area of venue on test UI too
-            } else {
-                self.logger.debug("listRecordableEvents  - shortNames don't match: \(shortName) vs. \(eventPayload.shortName)")
-            }
-        })
+//        venueDiary?.listRecordableEvents().forEach({ (evt) in
+//            self.logger.debug("listRecordableEvents item")
+//            guard let eventPayload = evt.payload else {
+//                return
+//            }
+//            if eventPayload.shortName == shortName {
+//                labelText += " (Venue)"
+//                // TODO set text to venue name, if provided
+//                // TODO include area of venue on test UI too
+//            } else {
+//                self.logger.debug("listRecordableEvents  - shortNames don't match: \(shortName) vs. \(eventPayload.shortName)")
+//            }
+//        })
         cell.textLabel?.text = labelText
         cell.detailTextLabel?.text = "\(dateFormatter.string(from: target.lastUpdatedAt)) [\(statistics)]"
         return cell
@@ -469,19 +397,6 @@ class PhoneModeViewController: UIViewController, SensorDelegate, UITableViewData
 //        }
 //        let result = sensor.immediateSend(data: payloadData, target.targetIdentifier)
 //        logger.debug("immediateSend (from=\(payloadData.shortName),to=\(target.payloadData.shortName),success=\(result))")
-    }
-    
-    @IBAction func showVenueDiary(_ sender: UIButton) {
-        let mainStoryboard = UIStoryboard(name: "Main", bundle: Bundle.main)
-        if let viewController = mainStoryboard.instantiateViewController(withIdentifier: "venuediaryvc") as? UIViewController {
-            self.present(viewController, animated: true, completion: {
-                self.logger.debug("completion callback - venue diary")
-                if let vdvc = viewController as? VenueDiaryViewController {
-                    self.logger.debug(" - Got VenueDiaryViewController")
-                    vdvc.setDiary(self.venueDiary!)
-                }
-            })
-        }
     }
 }
 
